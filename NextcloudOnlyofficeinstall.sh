@@ -8,6 +8,21 @@ sudo apt-get install -y docker.io docker-compose
 sudo mkdir -p /opt/nextcloud
 sudo mkdir -p /opt/onlyoffice
 
+# Create a Docker network for Nextcloud and the external database
+sudo docker network create nextcloud_network
+
+# Create the external MariaDB database container
+sudo docker run -d \
+  --name=nextcloud_db \
+  --restart=always \
+  --network=nextcloud_network \
+  -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_PASSWORD=password \
+  -e MYSQL_DATABASE=nextcloud \
+  -e MYSQL_USER=nextcloud \
+  -v /opt/db:/var/lib/mysql \
+  mariadb
+
 # Clone the Nextcloud Docker image from the official repository
 sudo docker pull nextcloud
 
@@ -18,16 +33,6 @@ sudo docker pull onlyoffice/documentserver
 sudo tee /opt/docker-compose.yaml <<EOF
 version: '3'
 services:
-  db:
-    image: mariadb
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_PASSWORD: password
-      MYSQL_DATABASE: nextcloud
-      MYSQL_USER: nextcloud
-    volumes:
-      - /opt/db:/var/lib/mysql
   app:
     image: nextcloud
     restart: always
@@ -41,7 +46,7 @@ services:
       MYSQL_PASSWORD: password
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: nextcloud
-      MYSQL_HOST: db
+      MYSQL_HOST: nextcloud_db
   onlyoffice:
     image: onlyoffice/documentserver
     restart: always
@@ -53,7 +58,11 @@ services:
       MYSQL_PASSWORD: password
       MYSQL_DATABASE: onlyoffice
       MYSQL_USER: onlyoffice
-      MYSQL_HOST: db
+      MYSQL_HOST: nextcloud_db
+networks:
+  default:
+    external:
+      name: nextcloud_network
 EOF
 
 # Start the Nextcloud and ONLYOFFICE containers
